@@ -1,0 +1,103 @@
+#
+# Sample makefile
+#
+#
+# Possible optimizations for 8088 class processors
+#
+# -oa   Relax alias checking
+# -ob   Try to generate straight line code
+# -oe - expand user functions inline (-oe=20 is default, adds lots of code)
+# -oh   Enable repeated optimizations
+# -oi   generate certain lib funcs inline
+# -oi+  Set max inline depth (C++ only, use -oi for C)
+# -ok   Flowing of register save into function flow graph
+# -ol   loop optimizations
+# -ol+  loop optimizations plus unrolling
+# -or   Reorder for pipelined (486+ procs); not sure if good to use
+# -os   Favor space over time
+# -ot   Favor time over space
+# -ei   Allocate an "int" for all enum types
+# -zp2  Allow compiler to add padding to structs
+# -zpw  Use with above; make sure you are warning free!
+# -0    8088/8086 class code generation
+# -s    disable stack overflow checking
+# -zmf  put each function in a new code segment; helps with linking
+
+# Make it fast.  But don't use -oe otherwise you'll need large model.
+
+#
+# 示例 makefile
+#
+#
+# 针对 8088 类处理器的优化选项：
+#
+# -oa   放宽别名检查（减少安全检查以提升速度）
+# -ob   尝试生成直线代码（减少跳转指令）
+# -oe   内联展开用户函数（默认 -oe=20 会显著增加代码体积）
+# -oh   启用重复优化
+# -oi   内联特定库函数
+# -oi+  设置最大内联深度（仅 C++，C 语言用 -oi）
+# -ok   寄存器保存融入函数流程图（优化调用开销）
+# -ol   循环优化
+# -ol+  循环优化 + 展开（用空间换时间）
+# -or   为流水线处理器重排指令（仅 486+，慎用）
+# -os   空间优于时间（生成紧凑代码）
+# -ot   时间优于空间（生成快速代码）
+# -ei   为所有枚举类型分配 int 大小
+# -zp2  允许编译器添加结构体填充（对齐内存）
+# -zpw  配合 -zp2 使用；确保无编译警告！
+# -0    生成 8088/8086 兼容代码
+# -s    禁用栈溢出检查（减少运行时开销）
+# -zmf  将每个函数放入独立代码段（避免链接问题）
+
+# 目标：提高速度。但避免使用 -oe（否则需大内存模型）。
+
+tcp_h_dir = ..\..\TCPINC\
+tcp_c_dir = ..\..\TCPLIB\
+common_h_dir = ..\..\INCLUDE
+
+# 大内存模型
+memory_model = -ml
+compile_options = -0 $(memory_model) -DCFG_H="ad.cfg" -oh -os -s -zp2 -zpw -we
+compile_options += -i=$(tcp_h_dir) -i=$(common_h_dir)
+
+
+tcpobjs = packet.obj arp.obj eth.obj ip.obj tcp.obj tcpsockm.obj udp.obj utils.obj dns.obj timer.obj ipasm.obj trace.obj
+objs = ad.obj screen.obj session.obj
+
+all : clean ad.exe
+
+clean : .symbolic   #.symbolic标识总是执行
+  @del ad.exe
+  @del *.obj
+  @del *.map
+#目前UTILS目录下有一个名为PATCH的程序。该程序会在构建完成后修改二进制文件，修复我在Open Watcom运行时环境中发现的两个问题：
+
+# • 运行时环境会检查您机器BIOS中的版权日期，若未找到符合格式的日期，则假定您使用的是NEC PC98兼容机。当运行时环境进行键盘处理和声音生成的BIOS调用时，这将导致灾难性后果。受影响的机型包括老款爱普生Equity系列和早期康柏电脑。
+
+# • 在大型数据模型程序中，运行时环境初次启动时会将近堆扩展至最大容量。这使得程序看起来比实际多占用了64KB内存。
+
+# 我通过对运行时代码打补丁的方式"修复"了这些问题。正确的解决方法是修正并重新编译Open Watcom，但我尚未着手处理。我的修改方案是调整这些例程，使其直接返回而不执行原有操作。
+
+# PATCH的MAKEFILE会将其构建为在当前主机操作系统下运行；虽然可以编译为16位DOS版本，但实际修补程序时并不需要在16位DOS环境下运行。该程序会读取链接器生成的映射文件，寻找需要修补的例程并进行修改。
+
+# 执行文件修补并非必要步骤。但若不进行修补，在那些BIOS版权日期位置不符的老旧机器上可能会出现问题，同时内存占用也会显示虚高。
+
+# 该补丁工具最初命名为"patch.exe"，在Windows XP下运行良好。但从Windows Vista开始，任何包含"setup"或"patch"字样的程序都会被系统误认为是安装程序，进而弹出权限询问警告。这种设计十分愚蠢，解决方案是将程序重命名为"ptach.exe"。
+patch : .symbolic
+  ..\..\utils\ptach ad.exe ad.map $(memory_model)
+
+.asm : $(tcp_c_dir)
+
+.cpp : $(tcp_c_dir)
+
+# *.obj依赖于同名 *.asm​​ 文件
+.asm.obj :  
+  wasm -0 $(memory_model) $[*
+
+.cpp.obj :
+  wpp $[* $(compile_options)
+
+
+ad.exe: $(tcpobjs) $(objs)
+  wlink system dos option map option eliminate option stack=4096 name $@ file *.obj

@@ -1,0 +1,6 @@
+{
+    "key": "your_api_key_here",
+    "model": "deepseek-chat",
+    "temperature": 1.0,
+    "url": "https://api.deepseek.com/v1/chat/completions"
+}
